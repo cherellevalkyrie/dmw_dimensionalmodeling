@@ -503,29 +503,24 @@ ORDER BY
     avg_days_out DESC;
 
 -- QUESTION 2
--- Which movies have the highest late-return rate?
--- Minimum 10 rentals prevents a single-rental movie from dominating
--- the ranking.
+-- What is the average number of days rented by film rating (G, PG, PG-13, R, NC-17), 
+-- counting returned rentals only?
 SELECT
-    dm.film_id,
-    dm.title,
-    COUNT(*) AS total_rentals,
-    SUM(f.is_late) AS late_returns,
-    ROUND(100.0 * SUM(f.is_late) / COUNT(*), 2) AS late_return_pct,
-    ROUND(AVG(f.rental_duration_days), 2) AS avg_days_out,
-    SUM(f.is_currently_out) AS currently_out
-FROM fact_rental_lifecycle f
+    dm.rating AS film_rating,
+    ROUND(AVG(frl.rental_duration_days), 2) AS average_days_rented
+FROM fact_rental_lifecycle frl
 JOIN dim_movie dm
-  ON f.movie_key = dm.movie_key
-GROUP BY
-    dm.film_id,
-    dm.title
-HAVING COUNT(*) >= 10
+    ON frl.movie_key = dm.movie_key
+WHERE frl.is_currently_out = 0
+GROUP BY dm.rating
 ORDER BY
-    late_return_pct DESC,
-    late_returns DESC,
-    dm.title
-LIMIT 10;
+    CASE dm.rating
+        WHEN 'G' THEN 1
+        WHEN 'PG' THEN 2
+        WHEN 'PG-13' THEN 3
+        WHEN 'R' THEN 4
+        WHEN 'NC-17' THEN 5
+    END;
 
 -- QUESTION 3
 -- What rentals are still out, and how long have they been out?
@@ -562,39 +557,3 @@ SELECT
     MAX(f.rental_duration_days) AS max_days_out
 FROM fact_rental_lifecycle f
 WHERE f.is_currently_out = 1;
-
--- ============================================================
--- PART 1: BUS MATRIX FOR OPTION B
--- ============================================================
--- Business process: Rental lifecycle
---
--- Grain: one row per rental_id
---
--- Dimensions:
---   Time       -> checkout/rental date and return date
---   Movie      -> film rented
---   Store      -> store holding the inventory item
---   Staff      -> staff member who processed the rental
---   Customer   -> customer who rented the film
---   Status     -> returned on time / returned late / currently out
---
--- Facts:
---   rental_count            additive
---   rental_duration_days    additive; AVG is preferred for duration
---   expected_duration_days  additive mathematically; AVG is preferred
---   overdue_days            additive
---   is_late                 additive as a count of late rentals
---   is_currently_out        additive as a count of open rentals
---
--- Existing dimensions reused:
---   dim_time, dim_movie, dim_store, dim_staff
---
--- New dimensions:
---   dim_customer, dim_rental_status
---
--- dim_actor + bridge_film_actor are not directly attached to this fact
--- because that would create multiple fact rows per rental.
---
--- ============================================================
--- END OF OPTION B
--- ============================================================
